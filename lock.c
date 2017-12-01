@@ -123,7 +123,7 @@ Label1:
 
     v = lock->tag;                       // 最后再试试看能不能救回来
     if (!v) goto Label1;                 // 很幸运，又有别的线程释放tag，那么赶紧回到Label1获得锁
-    sys_futex(&lock->tag, FUTEX_WAIT, v, 0, 0, 0); // 很不幸，是真的没有别的线程释放tag了，假如阻塞队列，这里v其实可以直接用1代替了
+    sys_futex(&lock->tag, FUTEX_WAIT, v, 0, 0, 0); // 很不幸，是真的没有别的线程释放tag了，当前线程加入阻塞队列，这里v其实可以直接用1代替了
     goto Label0;
 }
 
