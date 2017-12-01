@@ -15,7 +15,7 @@
 #define     TWO_PHASES  2
 #define     PTHREAD     3
 
-#define     TEST_LOCK   3
+#define     TEST_LOCK   3 // 通过修改这个变量以切换main函数中测试的锁的类型，3是系统提供的锁pthread，main函数多线程使用pthread写
 
 typedef struct __queue_t {
     int *threads;
