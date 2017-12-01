@@ -99,7 +99,9 @@ void two_phases_init(two_phases_t* lock) {
     lock->guard = 0;
     lock->cnt = 0;
 }
-
+/*
+ * 获得二相锁，下面有具体步骤
+ */
 void two_phases_acquire(two_phases_t* lock) {
     int v;
     if (!xchg(&lock->tag, 1)) return;    // 若xchg = 0，则直接能获得锁tag，返回
@@ -125,11 +127,17 @@ Label1:
     goto Label0;
 }
 
+/*
+ * 释放二相锁，先tag置零，同时尝试唤醒操作系统阻塞队列中被阻塞的所有线程，与mutex不同的是，mutex只唤醒一个，二相锁唤醒所有。
+ */
 void two_phases_release(two_phases_t* lock) {
     lock->tag = 0;
     if (lock->cnt) sys_futex(&lock->tag, FUTEX_WAKE, lock->cnt, 0, 0, 0);
 }
 
+/*
+ * 预编译指令以泛用lock_init(), lock_acquire(), lock_release
+ */
 void lock_init(void* lock) {
 #if TEST_LOCK == SPIN_LOCK
     spinlock_init((spinlock_t*)lock);
