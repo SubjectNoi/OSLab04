@@ -91,6 +91,9 @@ void mutex_release(mutex_t* lock) {
     sys_futex(&lock->tag, FUTEX_WAKE, 1, 0, 0, 0);
 }
 
+/*
+ * 初始化二相锁，tag为锁本身，cnt为被tag阻塞的线程数，guard为cnt的锁，保证cnt同时只能被一个线程修改。
+ */
 void two_phases_init(two_phases_t* lock) {
     lock->tag = 0;
     lock->guard = 0;
@@ -99,24 +102,26 @@ void two_phases_init(two_phases_t* lock) {
 
 void two_phases_acquire(two_phases_t* lock) {
     int v;
-    if (!xchg(&lock->tag, 1)) return;
-
-    while (xchg(&lock->guard, 1));       // atomic_increment(mutex);
-    lock->cnt++;
-    lock->guard = 0;
+    if (!xchg(&lock->tag, 1)) return;    // 若xchg = 0，则直接能获得锁tag，返回
+                                         // 若不能直接获得锁，执行以下代码。
+    while (xchg(&lock->guard, 1));       // 使用自旋锁取得cnt的锁guard，以保证同时只有一个线程能修改cnt
+    lock->cnt++;                         // 因无法获得tag，该线程应该被标记为阻塞并被加入阻塞队列，被阻塞的线程cnt+1，其实写到这里就行了，但是
+                                         // 为了性能，有了下面的代码，下面的代码是为了“看看这个线程还有没有的救”，如果有的救(突然有别的线程释放
+                                         // 锁，tag可用，那么不用加入阻塞队列，这也是为什么这一块只有cnt++而没有sys_futex的原因)
+    lock->guard = 0;                     // cnt修改完毕，释放guard
 
 Label0:
 Label1:
-    if (!xchg(&lock->tag, 1)) {
-        while (xchg(&lock->guard, 1));  // atomic_decrement(mutex);
-        lock->cnt--;
-        lock->guard = 0;
-        return;
+    if (!xchg(&lock->tag, 1)) {          // 突然有别的线程释放tag，那么很幸运，这个线程不用加进阻塞队列可以直接执行
+        while (xchg(&lock->guard, 1));   // 通过自旋锁获得cnt的锁guard，以修改cnt(因为上面对cnt+1，而现在+1已经不必要了，所以要减回来)
+        lock->cnt--;                     // cnt-1
+        lock->guard = 0;                 // cnt修改完毕，释放guard
+        return;                          // 该线程获得了tag，直接返回
     }
 
-    v = lock->tag;                      // futex_wait(mutex, v)
-    if (!v) goto Label1;
-    sys_futex(&lock->tag, FUTEX_WAIT, v, 0, 0, 0);
+    v = lock->tag;                       // 最后再试试看能不能救回来
+    if (!v) goto Label1;                 // 很幸运，又有别的线程释放tag，那么赶紧回到Label1获得锁
+    sys_futex(&lock->tag, FUTEX_WAIT, v, 0, 0, 0); // 很不幸，是真的没有别的线程释放tag了，假如阻塞队列，这里v其实可以直接用1代替了
     goto Label0;
 }
 
