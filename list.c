@@ -22,22 +22,27 @@ void list_insert(list_t* t, unsigned int __val) {
 void list_delete(list_t* t, unsigned int __val) {
     lock_acquire(&t->lock);
     node_t *pos = t->head, *pre = pos;
-    while (pos->val == __val) {
-        t->head = pos->next;
-        pos = pos->next;
-        free(pre);
-        pre = pos;
+    if (!pos -> next) {
+        free(pos);
+        t->head = 0;
     }
-    pos = pos->next;
-    while (pos) {
-        if (pos->val == __val) {
-            pre->next = pos->next;
-            free(pos);
-            pos = pre->next;
-        }
-        else {
-            pre = pos;
+    else {
+        while (pos->val == __val) {
+            t->head = pos->next;
             pos = pos->next;
+            free(pre);
+            pre = pos;
+        }
+        //pos = pos->next;
+        while (pos) {
+            if (pos->val == __val) {
+                pre->next = pos->next;
+                free(pos);
+                pos = pre->next;
+            } else {
+                pre = pos;
+                pos = pos->next;
+            }
         }
     }
     lock_release(&t->lock);
