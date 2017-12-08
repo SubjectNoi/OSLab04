@@ -5,7 +5,7 @@
 #include "list.h"
 
 void list_init(list_t* t) {
-    t->head = NULL;
+    t->head = 0;
     lock_init(&t->lock);
 }
 
@@ -22,27 +22,22 @@ void list_insert(list_t* t, unsigned int __val) {
 void list_delete(list_t* t, unsigned int __val) {
     lock_acquire(&t->lock);
     node_t *pos = t->head, *pre = pos;
-    if (!pos -> next) {
-        free(pos);
-        t->head = 0;
+    //if (!pos->next) { free(pos); t->head = 0; }
+    while (pos && pos->val == __val) {
+        t->head = pos->next;
+        pos = pos->next;
+        free(pre);
+        pre = pos;
     }
-    else {
-        while (pos->val == __val) {
-            t->head = pos->next;
-            pos = pos->next;
-            free(pre);
+    if (pos) pos = pos->next;
+    while (pos) {
+        if (pos->val == __val) {
+            pre->next = pos->next;
+            free(pos);
+            pos = pre->next;
+        } else {
             pre = pos;
-        }
-        //pos = pos->next;
-        while (pos) {
-            if (pos->val == __val) {
-                pre->next = pos->next;
-                free(pos);
-                pos = pre->next;
-            } else {
-                pre = pos;
-                pos = pos->next;
-            }
+            pos = pos->next;
         }
     }
     lock_release(&t->lock);
